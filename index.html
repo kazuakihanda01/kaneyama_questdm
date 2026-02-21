@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>金山町クエスト</title>
+<style>
+  :root{
+    --bg:#141414;
+    --panel:#0b0b0b;
+    --frame:#d9d0b3;
+    --gold:#c89b3c;
+    --text:#ffffff;
+    --pin:#ffdf6a;
+    --danger:#ff6a6a;
+  }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Courier New", monospace;
+  }
+  header{
+    background:#2a2a2a;
+    padding:10px 12px;
+    text-align:center;
+    font-weight:700;
+    border-bottom:2px solid #000;
+    letter-spacing:0.4px;
+  }
+  .status{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    padding:10px 12px;
+    background:#1f1f1f;
+    border-bottom:2px solid #000;
+    font-size:14px;
+    flex-wrap:wrap;
+  }
+  .badge{
+    padding:4px 8px;
+    background:#000;
+    border:1px solid #444;
+    border-radius:6px;
+    margin-right:6px;
+    display:inline-block;
+  }
+
+  .wrap{ padding:10px 10px 0; }
+  .map-frame{
+    position:relative;
+    border:4px solid #000;
+    border-radius:8px;
+    overflow:hidden;
+    background:#000;
+  }
+  #map{
+    width:100%;
+    display:block;
+  }
+
+  /* ===== ピン（クエスト地点） ===== */
+  .pin{
+    position:absolute;
+    width:44px;
+    height:44px;
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+    background:rgba(255, 223, 106, 0.18);
+    border:2px solid rgba(255, 223, 106, 0.92);
+    box-shadow: 0 0 0 2px rgba(0,0,0,.75) inset, 0 0 10px rgba(255,223,106,.25);
+    cursor:pointer;
+    touch-action:manipulation;
+  }
+  .pin::after{
+    content:"★";
+    position:absolute;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-55%);
+    font-size:18px;
+    color:var(--pin);
+    text-shadow:0 1px 0 #000, 0 0 6px rgba(255,223,106,.6);
+    pointer-events:none;
+  }
+  .pin.locked{
+    opacity:.28;
+    filter:grayscale(40%);
+    box-shadow: 0 0 0 2px rgba(0,0,0,.75) inset;
+  }
+  .pin.done{
+    background:rgba(76, 175, 80, 0.18);
+    border-color:rgba(76, 175, 80, 0.95);
+  }
+  .pin.done::after{
+    content:"✓";
+    color:#7CFF8A;
+    text-shadow:0 1px 0 #000, 0 0 6px rgba(124,255,138,.35);
+  }
+
+  /* ===== スプライト（地図の上に重ねる） ===== */
+  .sprite{
+    position:absolute;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    pointer-events:none; /* ピン操作を邪魔しない */
+    filter: drop-shadow(0 2px 0 rgba(0,0,0,.6));
+  }
+  .sprite.hero{ width: 88px; }
+  .sprite.slime{ width: 54px; opacity: 0.95; }
+
+  /* ===== パネル ===== */
+  .panel{
+    margin:10px;
+    background:var(--panel);
+    border:3px solid var(--frame);
+    border-radius:10px;
+    box-shadow: 0 0 0 3px #000 inset;
+    padding:12px;
+  }
+  .panel-title{
+    font-weight:700;
+    margin:0 0 6px 0;
+    color:#f1e8c9;
+  }
+  #questText{
+    margin:0;
+    min-height:120px;
+    line-height:1.6;
+    white-space:pre-wrap;
+  }
+
+  .commands{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:10px;
+  }
+  button{
+    appearance:none;
+    border:none;
+    border-radius:10px;
+    padding:12px 10px;
+    font-size:16px;
+    font-weight:700;
+    background:var(--gold);
+    color:#1b1b1b;
+    box-shadow:0 3px 0 #8a6a20;
+  }
+  button:active{
+    transform:translateY(2px);
+    box-shadow:0 1px 0 #8a6a20;
+  }
+  button.secondary{
+    background:#3b3b3b;
+    color:#fff;
+    box-shadow:0 3px 0 #1f1f1f;
+  }
+  button.danger{
+    background:var(--danger);
+    color:#1b1b1b;
+    box-shadow:0 3px 0 #9b3d3d;
+  }
+  button:disabled{
+    opacity:.45;
+    transform:none;
+    box-shadow:none;
+  }
+
+  .hint{
+    font-size:12px;
+    opacity:.85;
+    margin-top:8px;
+  }
+
+  .toast{
+    position:fixed;
+    left:50%;
+    bottom:18px;
+    transform:translateX(-50%);
+    background:#000;
+    border:1px solid #444;
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:13px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .25s ease;
+    max-width:92vw;
+    text-align:center;
+  }
+  .toast.show{ opacity:0.95; }
+
+  .footer{
+    padding:0 10px 18px;
+    font-size:12px;
+    opacity:.75;
+    text-align:center;
+  }
+</style>
+</head>
+
+<body>
+<header>金山町クエスト 〜水と杉と人の町〜</header>
+
+<div class="status">
+  <div>
+    <span class="badge">レベル <span id="lv">1</span></span>
+    <span class="badge">HP <span id="hp">20</span>/<span id="hpMax">20</span></span>
+  </div>
+  <div>
+    <span class="badge">G <span id="gold">50</span></span>
+    <span class="badge">進行 <span id="progress">0</span>/5</span>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="map-frame" id="mapFrame">
+    <img id="map" src="map.jpg" alt="カネヤマ まち歩き MAP">
+
+    <!-- ▼スプライト（重ね表示） -->
+    <!-- 勇者：マルコの蔵付近（必要なら微調整） -->
+    <img class="sprite hero" id="heroSprite" src="hero.png" alt="勇者"
+         style="left:75%; top:58%;" />
+
+    <!-- スライム3体（雰囲気：草地/川沿い/橋付近） -->
+    <img class="sprite slime" id="slime1" src="slime.png" alt="スライム"
+         style="left:20%; top:48%;" />
+    <img class="sprite slime" id="slime2" src="slime.png" alt="スライム"
+         style="left:55%; top:30%;" />
+    <img class="sprite slime" id="slime3" src="slime.png" alt="スライム"
+         style="left:60%; top:22%;" />
+
+    <!-- ▼クエストピン（★）：位置は“現時点の仮” → デバッグでピタ合わせ可能 -->
+    <!-- q0: マルコの蔵 / q1: 大堰 / q2: 金山町役場 / q3: 古の民家 / q4: きごころ橋 -->
+    <div class="pin" data-q="0" style="left:75%; top:58%;" title="マルコの蔵"></div>
+    <div class="pin locked" data-q="1" style="left:69%; top:77%;" title="大堰"></div>
+    <div class="pin locked" data-q="2" style="left:48%; top:71%;" title="金山町役場（国王の宮殿）"></div>
+    <div class="pin locked" data-q="3" style="left:52%; top:56%;" title="古の民家"></div>
+    <div class="pin locked" data-q="4" style="left:56%; top:24%;" title="きごころ橋"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <p class="panel-title" id="questTitle">【地図をタップして冒険開始】</p>
+  <p id="questText">★ マップ上の光る印（★）を押して、目的地を選べ。</p>
+
+  <div class="commands">
+    <button id="arriveBtn" onclick="completeCurrentQuest()" disabled>▶ 到着した</button>
+    <button class="secondary" onclick="replayText()">▶ もう一度</button>
+  </div>
+
+  <div class="commands" style="margin-top:10px;">
+    <button class="secondary" onclick="showStatus()">▶ ステータス</button>
+    <button class="secondary" onclick="toggleSprites()">▶ キャラ表示</button>
+  </div>
+
+  <div class="commands" style="margin-top:10px;">
+    <button class="secondary" onclick="toggleCoordMode()">▶ 座標表示</button>
+    <button class="danger" onclick="resetProgress()">▶ 記録を消す</button>
+  </div>
+
+  <div class="hint">
+    ※GPSなし版：現地で「到着した」を押して進めます。<br>
+    ※音は最初のタップ後に有効になります（スマホの仕様）。<br>
+    ※「座標表示」ONで、地図をタップした位置の left/top(%) が表示されます（ピン微調整用）。
+  </div>
+</div>
+
+<div class="footer">© MOYA / Kaneyama Quest (prototype)</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/** ========= クエスト（5地点） ========= */
+const QUESTS = [
+  {
+    id: 0,
+    name: "マルコの蔵",
+    title: "【はじまりの場所｜マルコの蔵】",
+    text: "あなたは、マルコの蔵の前に立っている。\nこの町の物語は、ここから始まる。"
+  },
+  {
+    id: 1,
+    name: "大堰",
+    title: "【いにしえの水路｜大堰】",
+    text: "水の流れる音が、静かに響いている。\n昔から、この町を支えてきた音だ。"
+  },
+  {
+    id: 2,
+    name: "金山町役場",
+    title: "【国王の宮殿｜金山町役場】",
+    text: "ここは、町の未来が語られる場所。\n人の想いが集まり、決断となる。"
+  },
+  {
+    id: 3,
+    name: "古の民家",
+    title: "【古の民家｜伝統家屋】",
+    text: "木の色、屋根の形。\nこの町が大切にしてきた時間を感じよ。"
+  },
+  {
+    id: 4,
+    name: "きごころ橋",
+    title: "【きごころ橋】",
+    text: "水の上に、静かに架かる橋。\n人はこの橋を渡り、町へ入り、町を出ていく。\n\n少し立ち止まり、流れを見てみよう。\nこの町の時間も、同じように流れている。"
+  }
+];
+
+/** ========= 永続化（localStorage） ========= */
+const STORAGE_KEY = "kaneyama_quest_v2";
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return null;
+    const s = JSON.parse(raw);
+    if(typeof s.unlocked !== "number") return null;
+    if(!Array.isArray(s.completed)) return null;
+    return s;
+  }catch{ return null; }
+}
+function saveState(){
+  const s = {
+    unlocked,
+    completed: Array.from(completed),
+    gold,
+    lv,
+    spritesVisible
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+}
+
+/** ========= ゲーム状態 ========= */
+let unlocked = 1;          // 最初はマルコの蔵のみ
+let currentQuest = -1;     // 選択中
+let completed = new Set(); // 達成済み
+let gold = 50;
+let lv = 1;
+let spritesVisible = true;
+let coordMode = false;
+
+/** ========= 音（WebAudio） ========= */
+let audioReady = false;
+let audioCtx;
+let typingTimer = null;
+
+function ensureAudio(){
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if(audioCtx.state === "suspended") audioCtx.resume();
+  audioReady = true;
+}
+function beep(freq=880, dur=0.06, type="square", gain=0.05){
+  if(!audioReady) return;
+  const t = audioCtx.currentTime;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(t);
+  o.stop(t + dur + 0.02);
+}
+function typeSound(){
+  const base = 660 + Math.floor(Math.random()*120);
+  beep(base, 0.03, "square", 0.03);
+}
+function jingleClear(){
+  const seq = [[988,0.08],[1175,0.08],[1319,0.10],[1568,0.12]];
+  let delay = 0;
+  for(const [f,d] of seq){
+    setTimeout(()=>beep(f,d,"square",0.06), delay);
+    delay += d*1000 + 30;
+  }
+}
+function jingleWin(){
+  const seq = [[784,0.09],[988,0.09],[1175,0.09],[1568,0.12],[1175,0.10],[1568,0.16],[1976,0.22]];
+  let delay = 0;
+  for(const [f,d] of seq){
+    setTimeout(()=>beep(f,d,"square",0.07), delay);
+    delay += d*1000 + 25;
+  }
+}
+
+/** ========= 文字送り ========= */
+function typeText(fullText){
+  const el = document.getElementById("questText");
+  el.textContent = "";
+  let i = 0;
+  clearInterval(typingTimer);
+  typingTimer = setInterval(()=>{
+    el.textContent += fullText[i] ?? "";
+    if(fullText[i] && fullText[i] !== "\n") typeSound();
+    i++;
+    if(i >= fullText.length){
+      clearInterval(typingTimer);
+      typingTimer = null;
+      beep(523, 0.06, "square", 0.05);
+    }
+  }, 28);
+}
+
+/** ========= UI ========= */
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 1600);
+}
+
+function updateHUD(){
+  // lvは達成数に応じて上がる（演出）
+  lv = 1 + Math.floor(completed.size / 2);
+  document.getElementById("lv").textContent = String(lv);
+  document.getElementById("gold").textContent = String(gold);
+  document.getElementById("progress").textContent = String(completed.size);
+}
+
+function updatePins(){
+  document.querySelectorAll(".pin").forEach(pin=>{
+    const q = Number(pin.dataset.q);
+    pin.classList.toggle("locked", q >= unlocked);
+    pin.classList.toggle("done", completed.has(q));
+  });
+}
+
+function setQuest(qIndex){
+  const q = QUESTS[qIndex];
+  currentQuest = qIndex;
+
+  document.getElementById("questTitle").textContent = q.title;
+  typeText(q.text);
+
+  const btn = document.getElementById("arriveBtn");
+  if(completed.has(qIndex)){
+    btn.disabled = true;
+    btn.textContent = "✓ 達成済み";
+  }else{
+    btn.disabled = false;
+    btn.textContent = "▶ 到着した";
+  }
+}
+
+function replayText(){
+  ensureAudio();
+  beep(440, 0.05, "square", 0.05);
+  if(currentQuest >= 0) setQuest(currentQuest);
+}
+
+function showStatus(){
+  ensureAudio();
+  beep(740, 0.05, "square", 0.05);
+
+  const titles = QUESTS.map(q=>{
+    const mark = completed.has(q.id) ? "✓" : (q.id < unlocked ? "・" : "×");
+    return `${mark} ${q.name}`;
+  }).join("\n");
+
+  document.getElementById("questTitle").textContent = "【ステータス】";
+  typeText(
+`Lv ${lv} / HP 20/20 / G ${gold}
+
+旅の記録：
+${titles}
+
+ヒント：★を押して目的地を選べ。`
+  );
+  document.getElementById("arriveBtn").disabled = true;
+}
+
+/** ========= キャラ表示 ON/OFF ========= */
+function toggleSprites(){
+  spritesVisible = !spritesVisible;
+  const ids = ["heroSprite","slime1","slime2","slime3"];
+  ids.forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display = spritesVisible ? "block" : "none";
+  });
+  saveState();
+  toast(spritesVisible ? "キャラ表示：ON" : "キャラ表示：OFF");
+}
+
+/** ========= 座標表示モード（ピン微調整用） ========= */
+function toggleCoordMode(){
+  coordMode = !coordMode;
+  toast(coordMode ? "座標表示：ON（地図をタップ）" : "座標表示：OFF");
+}
+
+document.getElementById("mapFrame").addEventListener("click", (e) => {
+  if(!coordMode) return;
+  const frame = e.currentTarget.getBoundingClientRect();
+  const x = ((e.clientX - frame.left) / frame.width) * 100;
+  const y = ((e.clientY - frame.top) / frame.height) * 100;
+  toast(`座標: left ${x.toFixed(1)}% / top ${y.toFixed(1)}%`);
+});
+
+/** ========= 進行 ========= */
+function completeCurrentQuest(){
+  ensureAudio();
+  if(currentQuest < 0) return;
+
+  if(currentQuest >= unlocked){
+    toast("まだ行けない場所だ…");
+    return;
+  }
+  if(completed.has(currentQuest)){
+    toast("すでに達成している！");
+    return;
+  }
+
+  completed.add(currentQuest);
+  gold += 10;
+
+  jingleClear();
+  toast("クエスト達成！");
+
+  // 次を順に解放（0→1→2→3→4）
+  if(currentQuest === unlocked - 1 && unlocked < QUESTS.length){
+    unlocked++;
+  }
+
+  updatePins();
+  updateHUD();
+  saveState();
+
+  // 全クリ
+  if(completed.size === QUESTS.length){
+    setTimeout(()=>{
+      document.getElementById("questTitle").textContent = "【クリア】";
+      typeText("すべてのクエストを達成した！\nありがとう、旅人よ。");
+      const btn = document.getElementById("arriveBtn");
+      btn.disabled = false;
+      btn.textContent = "★ クリア！";
+      btn.onclick = ()=>{ ensureAudio(); jingleWin(); };
+      jingleWin();
+    }, 520);
+  }else{
+    setTimeout(()=>{
+      document.getElementById("questTitle").textContent = "【次の目的地を選べ】";
+      typeText("地図上の光る印（★）を押して、次の場所へ向かおう。");
+      document.getElementById("arriveBtn").disabled = true;
+    }, 620);
+  }
+}
+
+/** ========= 記録リセット ========= */
+function resetProgress(){
+  ensureAudio();
+  beep(220, 0.10, "square", 0.05);
+
+  localStorage.removeItem(STORAGE_KEY);
+  unlocked = 1;
+  currentQuest = -1;
+  completed = new Set();
+  gold = 50;
+  lv = 1;
+
+  updatePins();
+  updateHUD();
+
+  document.getElementById("questTitle").textContent = "【地図をタップして冒険開始】";
+  typeText("★ マップ上の光る印（★）を押して、目的地を選べ。");
+  document.getElementById("arriveBtn").disabled = true;
+
+  toast("記録を消した！");
+}
+
+/** ========= ピン操作 ========= */
+document.querySelectorAll(".pin").forEach(pin=>{
+  pin.addEventListener("click", (ev)=>{
+    // coordMode のタップと干渉しないように
+    ev.stopPropagation();
+
+    ensureAudio();
+    const q = Number(pin.dataset.q);
+
+    if(q >= unlocked){
+      beep(220, 0.08, "square", 0.05);
+      toast("まだ行けない場所だ…");
+      return;
+    }
+    beep(880, 0.05, "square", 0.05);
+    setQuest(q);
+  });
+});
+
+/** 初期化 */
+window.addEventListener("load", ()=>{
+  const s = loadState();
+  if(s){
+    unlocked = Math.max(1, Math.min(QUESTS.length, s.unlocked));
+    completed = new Set((s.completed || []).filter(n => Number.isInteger(n) && n >= 0 && n < QUESTS.length));
+    gold = typeof s.gold === "number" ? s.gold : (50 + completed.size * 10);
+    spritesVisible = typeof s.spritesVisible === "boolean" ? s.spritesVisible : true;
+  }
+
+  // キャラ表示状態を反映
+  if(!spritesVisible){
+    ["heroSprite","slime1","slime2","slime3"].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.style.display = "none";
+    });
+  }
+
+  updatePins();
+  updateHUD();
+});
+
+// 最初のタップで音有効化（スマホ仕様）
+window.addEventListener("pointerdown", ()=>{
+  if(!audioReady) ensureAudio();
+}, { once:true });
+</script>
+
+</body>
+</html>
