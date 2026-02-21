@@ -60,18 +60,19 @@
     display:block;
   }
 
-  /* ===== ピン（クエスト地点） ===== */
+  /* ===== ピン（★）—中心基準で正確 ===== */
   .pin{
     position:absolute;
     width:44px;
     height:44px;
     border-radius:50%;
-    transform:translate(-50%,-50%);
+    transform:translate(-50%,-50%); /* 中心合わせ */
     background:rgba(255, 223, 106, 0.18);
     border:2px solid rgba(255, 223, 106, 0.92);
     box-shadow: 0 0 0 2px rgba(0,0,0,.75) inset, 0 0 10px rgba(255,223,106,.25);
     cursor:pointer;
     touch-action:manipulation;
+    z-index:5;
   }
   .pin::after{
     content:"★";
@@ -99,16 +100,27 @@
     text-shadow:0 1px 0 #000, 0 0 6px rgba(124,255,138,.35);
   }
 
-  /* ===== スプライト（地図の上に重ねる） ===== */
+  /* ===== スプライト（勇者/スライム）—足元基準で自然 ===== */
   .sprite{
     position:absolute;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -100%); /* ★ここが重要：足元が座標になる */
     image-rendering: pixelated;
-    pointer-events:none; /* ピン操作を邪魔しない */
+    pointer-events:none;
     filter: drop-shadow(0 2px 0 rgba(0,0,0,.6));
+    z-index:4;
   }
-  .sprite.hero{ width: 88px; }
-  .sprite.slime{ width: 54px; opacity: 0.95; }
+  .sprite.hero{ width: 92px; }  /* 少し大きめに見える */
+  .sprite.slime{ width: 84px; opacity: 0.98; } /* ←スライム大きく */
+
+  /* ぷよぷよ（上下に弾む） */
+  .puyopuyo{
+    animation: puyopuyo 0.6s ease-in-out infinite;
+  }
+  @keyframes puyopuyo{
+    0%   { transform: translate(-50%, -100%) translateY(0); }
+    50%  { transform: translate(-50%, -100%) translateY(-12px); }
+    100% { transform: translate(-50%, -100%) translateY(0); }
+  }
 
   /* ===== パネル ===== */
   .panel{
@@ -189,6 +201,7 @@
     transition:opacity .25s ease;
     max-width:92vw;
     text-align:center;
+    z-index:50;
   }
   .toast.show{ opacity:0.95; }
 
@@ -219,20 +232,21 @@
   <div class="map-frame" id="mapFrame">
     <img id="map" src="map.jpg" alt="カネヤマ まち歩き MAP">
 
-    <!-- ▼スプライト（重ね表示） -->
-    <!-- 勇者：マルコの蔵付近（必要なら微調整） -->
+    <!-- ▼スプライト（足元基準） -->
+    <!-- 勇者：マルコの蔵付近（必要なら座標表示で微調整） -->
     <img class="sprite hero" id="heroSprite" src="hero.png" alt="勇者"
-         style="left:75%; top:58%;" />
+         style="left:75%; top:60%; display:block;" />
 
-    <!-- スライム3体（雰囲気：草地/川沿い/橋付近） -->
+    <!-- スライム3体 -->
     <img class="sprite slime" id="slime1" src="slime.png" alt="スライム"
-         style="left:20%; top:48%;" />
+         style="left:20%; top:50%; display:block;" />
     <img class="sprite slime" id="slime2" src="slime.png" alt="スライム"
-         style="left:55%; top:30%;" />
+         style="left:55%; top:32%; display:block;" />
+    <!-- きごころ橋達成でぷよぷよする対象 -->
     <img class="sprite slime" id="slime3" src="slime.png" alt="スライム"
-         style="left:60%; top:22%;" />
+         style="left:60%; top:26%; display:block;" />
 
-    <!-- ▼クエストピン（★）：位置は“現時点の仮” → デバッグでピタ合わせ可能 -->
+    <!-- ▼クエストピン（★）：中心基準 -->
     <!-- q0: マルコの蔵 / q1: 大堰 / q2: 金山町役場 / q3: 古の民家 / q4: きごころ橋 -->
     <div class="pin" data-q="0" style="left:75%; top:58%;" title="マルコの蔵"></div>
     <div class="pin locked" data-q="1" style="left:69%; top:77%;" title="大堰"></div>
@@ -264,11 +278,11 @@
   <div class="hint">
     ※GPSなし版：現地で「到着した」を押して進めます。<br>
     ※音は最初のタップ後に有効になります（スマホの仕様）。<br>
-    ※「座標表示」ONで、地図をタップした位置の left/top(%) が表示されます（ピン微調整用）。
+    ※「座標表示」ONで、地図をタップした位置の left/top(%) を表示（ピン微調整用）。
   </div>
 </div>
 
-<div class="footer">© MOYA / Kaneyama Quest (prototype)</div>
+<div class="footer">Kaneyama Quest (prototype)</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -307,7 +321,7 @@ const QUESTS = [
 ];
 
 /** ========= 永続化（localStorage） ========= */
-const STORAGE_KEY = "kaneyama_quest_v2";
+const STORAGE_KEY = "kaneyama_quest_v3";
 function loadState(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -323,18 +337,16 @@ function saveState(){
     unlocked,
     completed: Array.from(completed),
     gold,
-    lv,
     spritesVisible
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
 
 /** ========= ゲーム状態 ========= */
-let unlocked = 1;          // 最初はマルコの蔵のみ
-let currentQuest = -1;     // 選択中
-let completed = new Set(); // 達成済み
+let unlocked = 1;
+let currentQuest = -1;
+let completed = new Set();
 let gold = 50;
-let lv = 1;
 let spritesVisible = true;
 let coordMode = false;
 
@@ -412,8 +424,7 @@ function toast(msg){
 }
 
 function updateHUD(){
-  // lvは達成数に応じて上がる（演出）
-  lv = 1 + Math.floor(completed.size / 2);
+  const lv = 1 + Math.floor(completed.size / 2);
   document.getElementById("lv").textContent = String(lv);
   document.getElementById("gold").textContent = String(gold);
   document.getElementById("progress").textContent = String(completed.size);
@@ -461,7 +472,7 @@ function showStatus(){
 
   document.getElementById("questTitle").textContent = "【ステータス】";
   typeText(
-`Lv ${lv} / HP 20/20 / G ${gold}
+`HP 20/20 / G ${gold}
 
 旅の記録：
 ${titles}
@@ -483,12 +494,11 @@ function toggleSprites(){
   toast(spritesVisible ? "キャラ表示：ON" : "キャラ表示：OFF");
 }
 
-/** ========= 座標表示モード（ピン微調整用） ========= */
+/** ========= 座標表示モード ========= */
 function toggleCoordMode(){
   coordMode = !coordMode;
   toast(coordMode ? "座標表示：ON（地図をタップ）" : "座標表示：OFF");
 }
-
 document.getElementById("mapFrame").addEventListener("click", (e) => {
   if(!coordMode) return;
   const frame = e.currentTarget.getBoundingClientRect();
@@ -496,6 +506,15 @@ document.getElementById("mapFrame").addEventListener("click", (e) => {
   const y = ((e.clientY - frame.top) / frame.height) * 100;
   toast(`座標: left ${x.toFixed(1)}% / top ${y.toFixed(1)}%`);
 });
+
+/** ========= きごころ橋達成でスライムぷよぷよ ========= */
+function slimePuyoOnce(){
+  const s = document.getElementById("slime3");
+  if(!s) return;
+  s.classList.add("puyopuyo");
+  toast("スライムが ぷよぷよしている…");
+  setTimeout(()=>s.classList.remove("puyopuyo"), 6000);
+}
 
 /** ========= 進行 ========= */
 function completeCurrentQuest(){
@@ -514,10 +533,15 @@ function completeCurrentQuest(){
   completed.add(currentQuest);
   gold += 10;
 
+  // きごころ橋（q4）達成でぷよぷよ
+  if(currentQuest === 4){
+    slimePuyoOnce();
+  }
+
   jingleClear();
   toast("クエスト達成！");
 
-  // 次を順に解放（0→1→2→3→4）
+  // 次を順に解放
   if(currentQuest === unlocked - 1 && unlocked < QUESTS.length){
     unlocked++;
   }
@@ -526,7 +550,6 @@ function completeCurrentQuest(){
   updateHUD();
   saveState();
 
-  // 全クリ
   if(completed.size === QUESTS.length){
     setTimeout(()=>{
       document.getElementById("questTitle").textContent = "【クリア】";
@@ -556,7 +579,6 @@ function resetProgress(){
   currentQuest = -1;
   completed = new Set();
   gold = 50;
-  lv = 1;
 
   updatePins();
   updateHUD();
@@ -571,12 +593,10 @@ function resetProgress(){
 /** ========= ピン操作 ========= */
 document.querySelectorAll(".pin").forEach(pin=>{
   pin.addEventListener("click", (ev)=>{
-    // coordMode のタップと干渉しないように
     ev.stopPropagation();
-
     ensureAudio();
-    const q = Number(pin.dataset.q);
 
+    const q = Number(pin.dataset.q);
     if(q >= unlocked){
       beep(220, 0.08, "square", 0.05);
       toast("まだ行けない場所だ…");
@@ -587,8 +607,21 @@ document.querySelectorAll(".pin").forEach(pin=>{
   });
 });
 
-/** 初期化 */
+/** ========= 画像ロード失敗を検知（勇者が出ない対策） ========= */
+function attachImgErrorHint(id, filename){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener("error", ()=>{
+    toast(`${filename} が見つからないか読み込めない…（ファイル名/場所を確認）`);
+  });
+}
+attachImgErrorHint("heroSprite","hero.png");
+attachImgErrorHint("slime1","slime.png");
+attachImgErrorHint("slime2","slime.png");
+attachImgErrorHint("slime3","slime.png");
+
 window.addEventListener("load", ()=>{
+  // state復元
   const s = loadState();
   if(s){
     unlocked = Math.max(1, Math.min(QUESTS.length, s.unlocked));
@@ -597,13 +630,15 @@ window.addEventListener("load", ()=>{
     spritesVisible = typeof s.spritesVisible === "boolean" ? s.spritesVisible : true;
   }
 
-  // キャラ表示状態を反映
+  // キャラ表示状態を反映（ただし勇者は必ず表示）
   if(!spritesVisible){
-    ["heroSprite","slime1","slime2","slime3"].forEach(id=>{
+    ["slime1","slime2","slime3"].forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.style.display = "none";
     });
   }
+  const hero = document.getElementById("heroSprite");
+  if(hero) hero.style.display = "block";
 
   updatePins();
   updateHUD();
