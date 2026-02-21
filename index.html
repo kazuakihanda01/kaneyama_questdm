@@ -60,13 +60,13 @@
     display:block;
   }
 
-  /* ===== ピン（★）—中心基準で正確 ===== */
+  /* ===== ★ピン（中心基準） ===== */
   .pin{
     position:absolute;
     width:44px;
     height:44px;
     border-radius:50%;
-    transform:translate(-50%,-50%); /* 中心合わせ */
+    transform:translate(-50%,-50%);
     background:rgba(255, 223, 106, 0.18);
     border:2px solid rgba(255, 223, 106, 0.92);
     box-shadow: 0 0 0 2px rgba(0,0,0,.75) inset, 0 0 10px rgba(255,223,106,.25);
@@ -100,25 +100,27 @@
     text-shadow:0 1px 0 #000, 0 0 6px rgba(124,255,138,.35);
   }
 
-  /* ===== スプライト（勇者/スライム）—足元基準で自然 ===== */
+  /* ===== スプライト（足元基準） ===== */
   .sprite{
     position:absolute;
-    transform: translate(-50%, -100%); /* ★ここが重要：足元が座標になる */
+    transform: translate(-50%, -100%);
     image-rendering: pixelated;
     pointer-events:none;
     filter: drop-shadow(0 2px 0 rgba(0,0,0,.6));
     z-index:4;
   }
-  .sprite.hero{ width: 92px; }  /* 少し大きめに見える */
-  .sprite.slime{ width: 84px; opacity: 0.98; } /* ←スライム大きく */
 
-  /* ぷよぷよ（上下に弾む） */
+  /* ★要望：3倍に大きく */
+  .sprite.hero{ width: 276px; }   /* 92px ×3 */
+  .sprite.slime{ width: 252px; opacity: 0.98; } /* 84px ×3 */
+
+  /* ぷよぷよ */
   .puyopuyo{
     animation: puyopuyo 0.6s ease-in-out infinite;
   }
   @keyframes puyopuyo{
     0%   { transform: translate(-50%, -100%) translateY(0); }
-    50%  { transform: translate(-50%, -100%) translateY(-12px); }
+    50%  { transform: translate(-50%, -100%) translateY(-18px); }
     100% { transform: translate(-50%, -100%) translateY(0); }
   }
 
@@ -232,27 +234,24 @@
   <div class="map-frame" id="mapFrame">
     <img id="map" src="map.jpg" alt="カネヤマ まち歩き MAP">
 
-    <!-- ▼スプライト（足元基準） -->
-    <!-- 勇者：マルコの蔵付近（必要なら座標表示で微調整） -->
+    <!-- ▼スプライト（勇者は★をタップすると移動する） -->
     <img class="sprite hero" id="heroSprite" src="hero.png" alt="勇者"
-         style="left:75%; top:60%; display:block;" />
+         style="left:75.0%; top:64.5%; display:block;" />
 
-    <!-- スライム3体 -->
+    <!-- スライム3体（見た目用：位置はお好みで後から微調整OK） -->
     <img class="sprite slime" id="slime1" src="slime.png" alt="スライム"
          style="left:20%; top:50%; display:block;" />
     <img class="sprite slime" id="slime2" src="slime.png" alt="スライム"
          style="left:55%; top:32%; display:block;" />
-    <!-- きごころ橋達成でぷよぷよする対象 -->
     <img class="sprite slime" id="slime3" src="slime.png" alt="スライム"
-         style="left:60%; top:26%; display:block;" />
+         style="left:65.0%; top:26.5%; display:block;" />
 
-    <!-- ▼クエストピン（★）：中心基準 -->
-    <!-- q0: マルコの蔵 / q1: 大堰 / q2: 金山町役場 / q3: 古の民家 / q4: きごころ橋 -->
-    <div class="pin" data-q="0" style="left:75%; top:58%;" title="マルコの蔵"></div>
-    <div class="pin locked" data-q="1" style="left:69%; top:77%;" title="大堰"></div>
-    <div class="pin locked" data-q="2" style="left:48%; top:71%;" title="金山町役場（国王の宮殿）"></div>
-    <div class="pin locked" data-q="3" style="left:52%; top:56%;" title="古の民家"></div>
-    <div class="pin locked" data-q="4" style="left:56%; top:24%;" title="きごころ橋"></div>
+    <!-- ▼★ピン（あなたが計測した“確定座標”） -->
+    <div class="pin"        data-q="0" style="left:75.0%; top:64.5%;" title="マルコの蔵"></div>
+    <div class="pin locked" data-q="1" style="left:76.5%; top:85.0%;" title="大堰"></div>
+    <div class="pin locked" data-q="2" style="left:54.5%; top:72.5%;" title="金山町役場（国王の宮殿）"></div>
+    <div class="pin locked" data-q="3" style="left:73.5%; top:43.5%;" title="古の民家"></div>
+    <div class="pin locked" data-q="4" style="left:65.0%; top:26.5%;" title="きごころ橋"></div>
   </div>
 </div>
 
@@ -278,50 +277,30 @@
   <div class="hint">
     ※GPSなし版：現地で「到着した」を押して進めます。<br>
     ※音は最初のタップ後に有効になります（スマホの仕様）。<br>
-    ※「座標表示」ONで、地図をタップした位置の left/top(%) を表示（ピン微調整用）。
+    ※「座標表示」ONで、地図をタップした位置の left/top(%) を表示（微調整用）。
   </div>
 </div>
 
-<div class="footer">Kaneyama Quest (prototype)</div>
+<div class="footer"> Kaneyama Quest (prototype)</div>
 <div class="toast" id="toast"></div>
 
 <script>
 /** ========= クエスト（5地点） ========= */
 const QUESTS = [
-  {
-    id: 0,
-    name: "マルコの蔵",
-    title: "【はじまりの場所｜マルコの蔵】",
-    text: "あなたは、マルコの蔵の前に立っている。\nこの町の物語は、ここから始まる。"
-  },
-  {
-    id: 1,
-    name: "大堰",
-    title: "【いにしえの水路｜大堰】",
-    text: "水の流れる音が、静かに響いている。\n昔から、この町を支えてきた音だ。"
-  },
-  {
-    id: 2,
-    name: "金山町役場",
-    title: "【国王の宮殿｜金山町役場】",
-    text: "ここは、町の未来が語られる場所。\n人の想いが集まり、決断となる。"
-  },
-  {
-    id: 3,
-    name: "古の民家",
-    title: "【古の民家｜伝統家屋】",
-    text: "木の色、屋根の形。\nこの町が大切にしてきた時間を感じよ。"
-  },
-  {
-    id: 4,
-    name: "きごころ橋",
-    title: "【きごころ橋】",
-    text: "水の上に、静かに架かる橋。\n人はこの橋を渡り、町へ入り、町を出ていく。\n\n少し立ち止まり、流れを見てみよう。\nこの町の時間も、同じように流れている。"
-  }
+  { id:0, name:"マルコの蔵", title:"【はじまりの場所｜マルコの蔵】",
+    text:"あなたは、マルコの蔵の前に立っている。\nこの町の物語は、ここから始まる。" },
+  { id:1, name:"大堰", title:"【いにしえの水路｜大堰】",
+    text:"水の流れる音が、静かに響いている。\n昔から、この町を支えてきた音だ。" },
+  { id:2, name:"金山町役場", title:"【国王の宮殿｜金山町役場】",
+    text:"ここは、町の未来が語られる場所。\n人の想いが集まり、決断となる。" },
+  { id:3, name:"古の民家", title:"【古の民家｜伝統家屋】",
+    text:"木の色、屋根の形。\nこの町が大切にしてきた時間を感じよ。" },
+  { id:4, name:"きごころ橋", title:"【きごころ橋】",
+    text:"水の上に、静かに架かる橋。\n人はこの橋を渡り、町へ入り、町を出ていく。\n\n少し立ち止まり、流れを見てみよう。\nこの町の時間も、同じように流れている。" },
 ];
 
-/** ========= 永続化（localStorage） ========= */
-const STORAGE_KEY = "kaneyama_quest_v3";
+/** ========= 永続化 ========= */
+const STORAGE_KEY = "kaneyama_quest_v4";
 function loadState(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -333,16 +312,15 @@ function loadState(){
   }catch{ return null; }
 }
 function saveState(){
-  const s = {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
     unlocked,
     completed: Array.from(completed),
     gold,
     spritesVisible
-  };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  }));
 }
 
-/** ========= ゲーム状態 ========= */
+/** ========= 状態 ========= */
 let unlocked = 1;
 let currentQuest = -1;
 let completed = new Set();
@@ -350,7 +328,7 @@ let gold = 50;
 let spritesVisible = true;
 let coordMode = false;
 
-/** ========= 音（WebAudio） ========= */
+/** ========= 音 ========= */
 let audioReady = false;
 let audioCtx;
 let typingTimer = null;
@@ -377,8 +355,7 @@ function beep(freq=880, dur=0.06, type="square", gain=0.05){
   o.stop(t + dur + 0.02);
 }
 function typeSound(){
-  const base = 660 + Math.floor(Math.random()*120);
-  beep(base, 0.03, "square", 0.03);
+  beep(660 + Math.floor(Math.random()*120), 0.03, "square", 0.03);
 }
 function jingleClear(){
   const seq = [[988,0.08],[1175,0.08],[1319,0.10],[1568,0.12]];
@@ -422,14 +399,12 @@ function toast(msg){
   t.classList.add("show");
   setTimeout(()=>t.classList.remove("show"), 1600);
 }
-
 function updateHUD(){
   const lv = 1 + Math.floor(completed.size / 2);
   document.getElementById("lv").textContent = String(lv);
   document.getElementById("gold").textContent = String(gold);
   document.getElementById("progress").textContent = String(completed.size);
 }
-
 function updatePins(){
   document.querySelectorAll(".pin").forEach(pin=>{
     const q = Number(pin.dataset.q);
@@ -438,10 +413,19 @@ function updatePins(){
   });
 }
 
+/** ========= 勇者を★へ移動 ========= */
+function moveHeroToPin(pinEl){
+  const hero = document.getElementById("heroSprite");
+  if(!hero || !pinEl) return;
+  // ★のleft/top(%)をそのまま使う（勇者は足元基準なので自然に立つ）
+  hero.style.left = pinEl.style.left;
+  hero.style.top  = pinEl.style.top;
+}
+
+/** ========= クエスト選択 ========= */
 function setQuest(qIndex){
   const q = QUESTS[qIndex];
   currentQuest = qIndex;
-
   document.getElementById("questTitle").textContent = q.title;
   typeText(q.text);
 
@@ -482,7 +466,7 @@ ${titles}
   document.getElementById("arriveBtn").disabled = true;
 }
 
-/** ========= キャラ表示 ON/OFF ========= */
+/** ========= キャラ表示 ========= */
 function toggleSprites(){
   spritesVisible = !spritesVisible;
   const ids = ["heroSprite","slime1","slime2","slime3"];
@@ -494,7 +478,7 @@ function toggleSprites(){
   toast(spritesVisible ? "キャラ表示：ON" : "キャラ表示：OFF");
 }
 
-/** ========= 座標表示モード ========= */
+/** ========= 座標表示 ========= */
 function toggleCoordMode(){
   coordMode = !coordMode;
   toast(coordMode ? "座標表示：ON（地図をタップ）" : "座標表示：OFF");
@@ -507,7 +491,7 @@ document.getElementById("mapFrame").addEventListener("click", (e) => {
   toast(`座標: left ${x.toFixed(1)}% / top ${y.toFixed(1)}%`);
 });
 
-/** ========= きごころ橋達成でスライムぷよぷよ ========= */
+/** ========= きごころ橋達成でぷよぷよ ========= */
 function slimePuyoOnce(){
   const s = document.getElementById("slime3");
   if(!s) return;
@@ -533,7 +517,6 @@ function completeCurrentQuest(){
   completed.add(currentQuest);
   gold += 10;
 
-  // きごころ橋（q4）達成でぷよぷよ
   if(currentQuest === 4){
     slimePuyoOnce();
   }
@@ -541,7 +524,6 @@ function completeCurrentQuest(){
   jingleClear();
   toast("クエスト達成！");
 
-  // 次を順に解放
   if(currentQuest === unlocked - 1 && unlocked < QUESTS.length){
     unlocked++;
   }
@@ -569,7 +551,7 @@ function completeCurrentQuest(){
   }
 }
 
-/** ========= 記録リセット ========= */
+/** ========= リセット ========= */
 function resetProgress(){
   ensureAudio();
   beep(220, 0.10, "square", 0.05);
@@ -587,32 +569,42 @@ function resetProgress(){
   typeText("★ マップ上の光る印（★）を押して、目的地を選べ。");
   document.getElementById("arriveBtn").disabled = true;
 
+  // 勇者はスタート地点へ戻す
+  const startPin = document.querySelector('.pin[data-q="0"]');
+  if(startPin) moveHeroToPin(startPin);
+
   toast("記録を消した！");
 }
 
-/** ========= ピン操作 ========= */
+/** ========= ★クリック：勇者を移動してクエスト開始 ========= */
 document.querySelectorAll(".pin").forEach(pin=>{
   pin.addEventListener("click", (ev)=>{
     ev.stopPropagation();
     ensureAudio();
 
     const q = Number(pin.dataset.q);
+
+    // 行けない場所は移動しない（ロック表現を守る）
     if(q >= unlocked){
       beep(220, 0.08, "square", 0.05);
       toast("まだ行けない場所だ…");
       return;
     }
+
+    // ★へ勇者を移動
+    moveHeroToPin(pin);
+
     beep(880, 0.05, "square", 0.05);
     setQuest(q);
   });
 });
 
-/** ========= 画像ロード失敗を検知（勇者が出ない対策） ========= */
+/** ========= 画像ロード失敗検知 ========= */
 function attachImgErrorHint(id, filename){
   const el = document.getElementById(id);
   if(!el) return;
   el.addEventListener("error", ()=>{
-    toast(`${filename} が見つからないか読み込めない…（ファイル名/場所を確認）`);
+    toast(`${filename} が見つからない/読み込めない（ファイル名と場所確認）`);
   });
 }
 attachImgErrorHint("heroSprite","hero.png");
@@ -620,8 +612,8 @@ attachImgErrorHint("slime1","slime.png");
 attachImgErrorHint("slime2","slime.png");
 attachImgErrorHint("slime3","slime.png");
 
+/** ========= 初期化 ========= */
 window.addEventListener("load", ()=>{
-  // state復元
   const s = loadState();
   if(s){
     unlocked = Math.max(1, Math.min(QUESTS.length, s.unlocked));
@@ -630,15 +622,17 @@ window.addEventListener("load", ()=>{
     spritesVisible = typeof s.spritesVisible === "boolean" ? s.spritesVisible : true;
   }
 
-  // キャラ表示状態を反映（ただし勇者は必ず表示）
+  // キャラ表示状態
   if(!spritesVisible){
-    ["slime1","slime2","slime3"].forEach(id=>{
+    ["heroSprite","slime1","slime2","slime3"].forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.style.display = "none";
     });
   }
-  const hero = document.getElementById("heroSprite");
-  if(hero) hero.style.display = "block";
+
+  // 初期位置：スタート（q0）へ勇者を合わせる
+  const startPin = document.querySelector('.pin[data-q="0"]');
+  if(startPin) moveHeroToPin(startPin);
 
   updatePins();
   updateHUD();
